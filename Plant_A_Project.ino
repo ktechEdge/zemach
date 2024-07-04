@@ -14,7 +14,7 @@ void setup() {
 }
 
 void loop() {
-  if((TimeForSendData - millis()) > 2000)
+  if((millis() - TimeForSendData) > 2000)
   {
     SendData();
     TimeForSendData = millis();  
