@@ -1,9 +1,10 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <Update.h>
 
-const char* ssid = "Gal";
-const char* pswd = "0544933268";
+const char* ssid = "4G-UFI-A89";
+const char* pswd = "1234567890";
 
 StaticJsonDocument<500> doc;
 JsonArray arr;
@@ -20,22 +21,31 @@ void AddObjectToJson(float temperature, float humidity, int lightIntensity, int 
 
 WiFiClient client;
 
+void ledBlinking(){
+  digitalWrite(ledForWiFi, HIGH);
+  delay(200);
+  digitalWrite(ledForWiFi, LOW);
+  delay(200);
+}
+
 void connectToWiFi() {
-    Serial.println("connectToWiFi");
+    //Serial.println("connectToWiFi");
     WiFi.begin(ssid, pswd);
         
     while (WiFi.status() != WL_CONNECTED) 
     {
-       Serial.print(".");
-       delay(200);
+      // Serial.print(".");
+       ledBlinking();
     }
-    Serial.println("Connected to network");
+    digitalWrite(ledForWiFi, HIGH);
+    //Serial.println("Connected to network");
 }
 
 void disconnectWiFi() {
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
-  Serial.println("WiFi disconnected");
+  digitalWrite(ledForWiFi, LOW);
+  //Serial.println("WiFi disconnected");
 }
 
 void SendData() {
@@ -43,7 +53,7 @@ void SendData() {
       arr = doc.to<JsonArray>();
       HTTPClient http;
       
-      http.begin(client,"http://192.168.1.83:3000/esp");
+      http.begin(client,"http://zemach.ktec-edge.com/esp");
       http.addHeader("Content-Type","application/json");
       
       JsonObject object = arr.createNestedObject();
@@ -59,4 +69,52 @@ void SendData() {
       int httpCode = http.POST(String(jsonOutPut));
       Serial.println(httpCode);
       http.end();
+}
+
+bool checkingNewVersion(){
+  String currentVersion = preferences.getString("version", "unknown");
+  String newVersion;
+  HTTPClient http;
+  http.begin("http://zemach.ktec-edge.com/esp/version");
+  int httpCode = http.GET();
+  Serial.println(httpCode);
+  if (httpCode == HTTP_CODE_OK) {
+    newVersion = http.getString();
+   }
+   http.end();
+   if(currentVersion != newVersion){
+    preferences.putString("version", newVersion);
+    return true;
+   }
+   
+   return false;
+}
+
+void FirmwareUpdate(){
+    HTTPClient http;
+    http.begin("http://zemach.ktec-edge.com/esp/firmware");
+    int httpCode = http.GET();
+
+    if (httpCode == HTTP_CODE_OK) {
+        int contentLength = http.getSize();
+        WiFiClient* client = http.getStreamPtr();
+
+        if (contentLength > 0) {
+            bool canBegin = Update.begin(contentLength);
+            if (canBegin) {
+                Serial.println("Begin OTA update...");
+                Update.writeStream(*client);
+                if (Update.end()) {
+                    if (Update.isFinished()) {
+                        Serial.println("OTA update has successfully finished");
+                        ESP.restart();
+                    } 
+                }
+            } else {
+                Serial.println("Not enough space to begin OTA");
+                client->flush();
+            }
+        }
+    }
+    http.end();
 }

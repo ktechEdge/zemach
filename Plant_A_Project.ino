@@ -1,5 +1,8 @@
 #include <DHT.h>
+#include <Preferences.h>
 #define DHTTYPE DHT11
+
+Preferences preferences;
 
 // ----- POSITION 1 -----
 #define UV_PIN_POSITION1 4
@@ -23,8 +26,10 @@ DHT dht2(DHT_PIN_POSITION2, DHTTYPE);
 DHT dht3(DHT_PIN_POSITION3, DHTTYPE);
 
 // ----- Global variables -----
-int Device_id = 1;
+#define ledForWiFi 15
+int Device_id = 2;
 unsigned long TimeForProcess;
+unsigned long versionCheckTime;
 
 struct Position{
   float temperature;
@@ -35,8 +40,16 @@ struct Position{
 }position1, position2, position3;
 
 void collectionOfData(Position &stance, DHT dht, int pinLight, int pinUV, int pinSoil){
-  stance.temperature = dht.readTemperature();
-  stance.humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+  
+  while(isnan(temperature) || isnan(humidity)){
+    temperature = dht.readTemperature();
+    humidity = dht.readHumidity();
+  }
+
+  stance.temperature = temperature;
+  stance.humidity = humidity;
   stance.lightIntensity = analogRead(pinLight);
   stance.UV_radiation = analogRead(pinUV);
   stance.soilMoisture = analogRead(pinSoil);
@@ -49,18 +62,30 @@ void collectionOfData(Position &stance, DHT dht, int pinLight, int pinUV, int pi
 
 void setup() {
   Serial.begin(115200);
+  pinMode(ledForWiFi, OUTPUT);
   dht1.begin();
   dht2.begin();
   dht3.begin();
   disconnectWiFi();
-  
+  preferences.begin("firmware", false);
 }
 
 void loop() {
+  if((millis() - versionCheckTime) > ((60 * 1000)*60)*24){
+    connectToWiFi();
+    if(checkingNewVersion()){
+      FirmwareUpdate();
+    }
+    disconnectWiFi();
+    versionCheckTime = millis();
+  }
+  
   if((millis() - TimeForProcess) > (59 * 1000)){
-    Serial.println("Start Process");
+    //Serial.println("Start Process");
     collectionOfData(position1, dht1, LIGHT_PIN_POSITION1, UV_PIN_POSITION1, SOIL_PIN_POSITION1);
+    delay(300);
     collectionOfData(position2, dht2, LIGHT_PIN_POSITION2, UV_PIN_POSITION2, SOIL_PIN_POSITION2);
+    delay(300);
     collectionOfData(position3, dht3, LIGHT_PIN_POSITION3, UV_PIN_POSITION3, SOIL_PIN_POSITION3);
     delay(500);
 
@@ -68,6 +93,6 @@ void loop() {
     SendData();
     disconnectWiFi();
     TimeForProcess = millis();
-    Serial.println("End Process");
+   // Serial.println("End Process");
   }
 }
