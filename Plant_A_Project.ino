@@ -27,9 +27,14 @@ DHT dht3(DHT_PIN_POSITION3, DHTTYPE);
 
 // ----- Global variables -----
 #define ledForWiFi 15
-int Device_id = 2;
+#define WakeUp 13
+int Device_id = 7;
+bool isWakeUp = false;
+bool processSendData = false;
+bool processVersion;
 unsigned long TimeForProcess;
 unsigned long versionCheckTime;
+unsigned long TimeforWakeUp;
 
 struct Position{
   float temperature;
@@ -63,25 +68,43 @@ void collectionOfData(Position &stance, DHT dht, int pinLight, int pinUV, int pi
 void setup() {
   Serial.begin(115200);
   pinMode(ledForWiFi, OUTPUT);
+  pinMode(WakeUp, OUTPUT);
   dht1.begin();
   dht2.begin();
   dht3.begin();
   disconnectWiFi();
+  processVersion = false;
   preferences.begin("firmware", false);
 }
 
 void loop() {
-  if((millis() - versionCheckTime) > ((60 * 1000)*60)*24){
+ if(((!isWakeUp)||(!processSendData))&&(millis() - versionCheckTime) > ((60 * 1000)*60)*24){
+    processVersion = true;
     connectToWiFi();
     if(checkingNewVersion()){
       FirmwareUpdate();
     }
     disconnectWiFi();
     versionCheckTime = millis();
+    processVersion = false;
+  }
+
+ if(((!processSendData)||(!processVersion))&&(millis() - TimeforWakeUp) > (30*1000)){
+    isWakeUp = true;
+    digitalWrite(WakeUp, HIGH);
+    connectToWiFi();
+    delay(500);
+    disconnectWiFi();
+    TimeforWakeUp = millis();
+    digitalWrite(WakeUp, LOW);
+    isWakeUp = false;
   }
   
-  if((millis() - TimeForProcess) > (59 * 1000)){
+  if(((!isWakeUp)||(!processVersion))&&(millis() - TimeForProcess) > (59 * 1000)){
+    processSendData = true;
+    ledBlinking();
     //Serial.println("Start Process");
+    disconnectWiFi();
     collectionOfData(position1, dht1, LIGHT_PIN_POSITION1, UV_PIN_POSITION1, SOIL_PIN_POSITION1);
     delay(300);
     collectionOfData(position2, dht2, LIGHT_PIN_POSITION2, UV_PIN_POSITION2, SOIL_PIN_POSITION2);
@@ -94,5 +117,6 @@ void loop() {
     disconnectWiFi();
     TimeForProcess = millis();
    // Serial.println("End Process");
+   processSendData = false;
   }
 }

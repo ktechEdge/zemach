@@ -9,8 +9,9 @@ const char* pswd = "1234567890";
 StaticJsonDocument<500> doc;
 JsonArray arr;
 
-void AddObjectToJson(float temperature, float humidity, int lightIntensity, int UV_radiation, int soilMoisture){
+void AddObjectToJson(int positionId, float temperature, float humidity, int lightIntensity, int UV_radiation, int soilMoisture){
       JsonObject object = arr.createNestedObject();
+      object["positionId"] = positionId;
       object["temperature"] = temperature;
       object["humidity"] = humidity;
       object["lightIntensity"] = lightIntensity;
@@ -34,11 +35,11 @@ void connectToWiFi() {
         
     while (WiFi.status() != WL_CONNECTED) 
     {
-      // Serial.print(".");
+      Serial.print(".");
        ledBlinking();
     }
     digitalWrite(ledForWiFi, HIGH);
-    //Serial.println("Connected to network");
+    Serial.println("Connected to network");
 }
 
 void disconnectWiFi() {
@@ -60,9 +61,9 @@ void SendData() {
       object["id"] = Device_id;
       object["Status"] = "Running";
 
-      AddObjectToJson(position1.temperature, position1.humidity, position1.lightIntensity, position1.UV_radiation, position1.soilMoisture);
-      AddObjectToJson(position2.temperature, position2.humidity, position2.lightIntensity, position2.UV_radiation, position2.soilMoisture);
-      AddObjectToJson(position3.temperature, position3.humidity, position3.lightIntensity, position3.UV_radiation, position3.soilMoisture);
+      AddObjectToJson(1, position1.temperature, position1.humidity, position1.lightIntensity, position1.UV_radiation, position1.soilMoisture);
+      AddObjectToJson(2, position2.temperature, position2.humidity, position2.lightIntensity, position2.UV_radiation, position2.soilMoisture);
+      AddObjectToJson(3, position3.temperature, position3.humidity, position3.lightIntensity, position3.UV_radiation, position3.soilMoisture);
       
       serializeJson(doc, jsonOutPut);
       
@@ -82,7 +83,7 @@ bool checkingNewVersion(){
     newVersion = http.getString();
    }
    http.end();
-   if(currentVersion != newVersion){
+   if(httpCode == HTTP_CODE_OK && currentVersion != newVersion){
     preferences.putString("version", newVersion);
     return true;
    }
